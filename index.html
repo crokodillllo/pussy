@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Record & Send Video</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+    video { border: 2px solid #ccc; width: 320px; margin: 10px auto; display: block; }
+    button { padding: 10px 20px; margin: 5px; font-size: 16px; cursor: pointer; }
+    #status { margin-top: 10px; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<h2>🎥 Record & Send Video</h2>
+
+<video id="preview" autoplay muted></video><br>
+<button id="startBtn">Start Recording</button>
+<button id="stopBtn" disabled>Stop & Upload</button>
+
+<p id="status"></p>
+
+<form id="sendForm" action="https://formsubmit.co/YOUR_GMAIL_HERE" method="POST">
+  <input type="hidden" name="video_link" id="videoLink">
+  <input type="hidden" name="_subject" value="New Video Submission">
+  <input type="hidden" name="_captcha" value="false">
+</form>
+
+<script>
+let mediaRecorder;
+let recordedChunks = [];
+
+const startBtn = document.getElementById("startBtn");
+const stopBtn = document.getElementById("stopBtn");
+const statusText = document.getElementById("status");
+const videoLinkInput = document.getElementById("videoLink");
+const sendForm = document.getElementById("sendForm");
+
+startBtn.onclick = async () => {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        document.getElementById("preview").srcObject = stream;
+        recordedChunks = [];
+        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = e => recordedChunks.push(e.data);
+        mediaRecorder.start();
+        statusText.textContent = "Recording...";
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+    } catch (err) {
+        alert("Camera access denied or not supported.");
+    }
+};
+
+stopBtn.onclick = () => {
+    mediaRecorder.stop();
+    stopBtn.disabled = true;
+    statusText.textContent = "Stopping...";
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(recordedChunks, { type: "video/webm" });
+        statusText.textContent = "Uploading to Cloudinary...";
+
+        const formData = new FormData();
+        formData.append("file", blob);
+        formData.append("upload_preset", "video_upload");
+
+        const response = await fetch("https://api.cloudinary.com/v1_1/davav1pn/video/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        const data = await response.json();
+        statusText.textContent = "Upload complete ✅ Sending link...";
+        videoLinkInput.value = data.secure_url;
+
+        sendForm.submit();
+    };
+};
+</script>
+
+</body>
+</html>
